@@ -5,86 +5,54 @@ import jwt from "jsonwebtoken"
 import { JWT_SECRET, JWT_EXPIRES_IN } from "../config/env.js";
 
 export const signUp = async (req, res, next) => {
-    // Validate input early
-    const { name, email, password } = req.body || {};
-    if (!name || !email || !password) {
-        const error = new Error('Name, email and password are required');
-        error.statusCode = 400;
-        return next(error);
-    }
-
-    if (typeof password !== 'string' || password.length < 6) {
-        const error = new Error('Password must be at least 6 characters long');
-        error.statusCode = 400;
-        return next(error);
-    }
-
     const session = await mongoose.startSession();
-    let createdUser;
+    session.startTransaction();
 
     try {
-        // Use withTransaction to ensure commit/abort semantics
-        await session.withTransaction(async () => {
-            // check if a user already exists (in the transaction session)
-            const existingUser = await userModel.findOne({ email }).session(session);
-            if (existingUser) {
-                const error = new Error('User already exists');
-                error.statusCode = 409;
-                throw error;
-            }
+        // logic to create a transaction
+        const { name, email, password } = req.body;
 
-            // hash password with explicit salt rounds
-            const salt = await bcrypt.genSalt(10);
-            const hashedPassword = await bcrypt.hash(password, salt);
+        // check if a user already exists
+        const existingUser = await userModel.findOne({ email });
 
-            const created = await userModel.create([
-                {
-                    name,
-                    email,
-                    password: hashedPassword
-                }
-            ], { session });
-
-            // created is an array because we used create with an array
-            createdUser = created[0];
-        });
-
-        // ensure we have a created user
-        if (!createdUser) {
-            const error = new Error('Failed to create user');
-            error.statusCode = 500;
-            throw error;
+        if (existingUser) {
+            const error = new Error("User already exists");
+            error.statusCode = 409
+            throw error
         }
 
-        if (!JWT_SECRET) {
-            const error = new Error('Authentication not configured');
-            error.statusCode = 500;
-            throw error;
-        }
+        // if !existingUser, tehn hash password for the current user
+        const salt = await bcrypt.genSalt();
+
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        const newUsers = await userModel.create([{
+            name,
+            email,
+            password: hashedPassword
+        }], { session })
 
         const token = jwt.sign(
-            { userId: createdUser._id },
+            { userId: newUsers[0]._id },
             JWT_SECRET,
             { expiresIn: JWT_EXPIRES_IN }
-        );
+        ) 
 
-        // sanitize user object before sending (remove password)
-        const userObj = createdUser.toObject ? createdUser.toObject() : { ...createdUser };
-        if (userObj.password) delete userObj.password;
+        await session.commitTransaction()
+        session.endSession();
 
         res.status(201).json({
             success: true,
-            message: 'User successfully created',
+            message: "User Successfully Created",
             data: {
                 token,
-                user: userObj
+                user: newUsers[0]
             }
-        });
+        })
     } catch (error) {
-        // allow the error middleware to map/format the error
-        next(error);
-    } finally {
+        await session.abortTransaction();
         session.endSession();
+        next(error)
     }
 }
 
@@ -139,7 +107,10 @@ export const signIn = async (req, res, next) => {
         res.status(200).json({
             success: true,
             message: 'User signed in successfully',
-            data: { token, user: userObj }
+            data: {
+                token,
+                user: userObj
+            }
         });
     } catch (error) {
         next(error);
