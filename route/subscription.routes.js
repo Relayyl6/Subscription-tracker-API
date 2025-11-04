@@ -4,7 +4,7 @@ import {createSubscription} from "../controllers/subscription.controller.js";
 
 const subscriptionRouter = Router();
 
-subscriptionRouter.get('/', (req, res) => {
+subscriptionRouter.get('/', authorise,(req, res) => {
     res.send({
         title: "GET all subscriptions"
     })
@@ -16,7 +16,7 @@ subscriptionRouter.get('/:id', (req, res) => {
     })
 })
 
-subscriptionRouter.post('/', authorise , createSubscription)
+subscriptionRouter.post('/', authorise, createSubscription)
 
 subscriptionRouter.put('/:id', (req, res) => {
     res.send({
