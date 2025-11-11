@@ -1,101 +1,81 @@
-const errorMiddleware = (err, req, res , next) => {
+const errorMiddleware = (err, req, res, next) => {
     try {
-        let error = { ...err }
+        console.error(err); // log full error for debugging
 
-        error.message = err.message
+        let statusCode = err.statusCode || 500;
+        let message = err.message || "Server Error";
 
-        console.error(err);
-
-        // Figuring out the type of the error
-
-        // eg Mongoose bad ObjectId
-        if (err.name === 'CastError') {
-            const message = "Resource not found";
-            error = new Error(message)
-            error.statusCode = 404;
-        }
-
-        if (
-            err.name === 'DocumentNotFoundError' ||
-            err.name === 'NotFoundError' ||
-            err.statusCode === 404 ||
-            (typeof err.message === 'string' && /not found/i.test(err.message))
-        ) {
-            const message = err.message || "Resource not found";
-            error = new Error(message);
-            error.statusCode = 404;
+        // Mongoose bad ObjectId
+        if (err.name === "CastError") {
+            statusCode = 404;
+            message = "Resource not found";
         }
 
         // Mongoose duplicate key
-        if (err.code === 11000) {
-            const message = "Duplicate field value entered";
-            error = new Error(message)
-            error.statusCode = 400;
+        else if (err.code === 11000) {
+            statusCode = 400;
+            const field = Object.keys(err.keyValue || {}).join(", ");
+            message = `Duplicate field value entered: ${field}`;
         }
 
         // Mongoose validation error
-        if (err.name === 'ValidationError') {
-            const message = Object.values(err.errors).map(value => value.message)
-            error = new Error(message.join(', '));
-            error.statusCode = 400;
+        else if (err.name === "ValidationError") {
+            statusCode = 400;
+            message = Object.values(err.errors)
+                .map(value => value.message)
+                .join(", ");
         }
 
-        // JWT Authentication errors
-        if (err.name === 'JsonWebTokenError') {
-            const message = 'Invalid token. Please log in again';
-            error = new Error(message);
-            error.statusCode = 401;
+        // JWT errors
+        else if (err.name === "JsonWebTokenError") {
+            statusCode = 401;
+            message = "Invalid token. Please log in again.";
+        }
+        else if (err.name === "TokenExpiredError") {
+            statusCode = 401;
+            message = "Token expired. Please log in again.";
         }
 
-        // JWT Token Expiration
-        if (err.name === 'TokenExpiredError') {
-            const message = 'Your token has expired. Please log in again';
-            error = new Error(message);
-            error.statusCode = 401;
+        // Syntax errors (e.g., JSON parse)
+        else if (err instanceof SyntaxError && err.body) {
+            statusCode = 400;
+            message = "Malformed JSON in request body.";
         }
 
-        // Payment related errors (for subscription handling)
-        if (err.type === 'StripeCardError') {
-            const message = err.message || 'Payment processing failed';
-            error = new Error(message);
-            error.statusCode = 400;
+        // Type errors
+        else if (err instanceof TypeError) {
+            statusCode = 500;
+            message = "Internal server error (TypeError)";
         }
 
-        // Rate limiting errors
-        if (err.name === 'TooManyRequests') {
-            const message = 'Rate limit exceeded. Please try again later';
-            error = new Error(message);
-            error.statusCode = 429;
+        // Axios or fetch request errors
+        else if (err.isAxiosError || err.response) {
+            statusCode = err.response?.status || 500;
+            message = err.response?.data?.message || err.message;
         }
 
-        // Database connection errors
-        if (err.name === 'MongoServerError') {
-            const message = 'Database operation failed';
-            error = new Error(message);
-            error.statusCode = 500;
+        // Database errors (generic)
+        else if (err.name === "MongoError" || err.code) {
+            statusCode = 500;
+            message = `Database error: ${err.message}`;
         }
 
-        // Subscription status errors
-        if (err.name === 'SubscriptionError') {
-            const message = err.message || 'Subscription operation failed';
-            error = new Error(message);
-            error.statusCode = 400;
+        // Any other unknown errors
+        if (Array.isArray(message)) {
+            message = message.join(", \n");
         }
 
-        // Request timeout
-        if (err.name === 'TimeoutError') {
-            const message = 'Request timeout. Please try again';
-            error = new Error(message);
-            error.statusCode = 408;
-        }
-
-        res.status(error.statusCode || 500).json({
+        res.status(statusCode).json({
             success: false,
-            error: error.message || "Server Error"
-        })
-    } catch (error) {
-        next(error);
+            error: message,
+        });
+    } catch (middlewareError) {
+        console.error("Error in errorMiddleware:", middlewareError);
+        res.status(500).json({
+            success: false,
+            error: "Something went wrong in the error handler",
+        });
     }
-}
+};
 
-export default errorMiddleware
+export default errorMiddleware;
