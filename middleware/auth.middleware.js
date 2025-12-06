@@ -6,7 +6,7 @@ import userModel from "../models/user.model.js";
 const authorise = async (req, res, next) => {
     try {
         let token;
-        console.log(req.headers.authorization);
+        // console.log(req.headers.authorization);
 
         const authHeader = req.headers.authorization;
 

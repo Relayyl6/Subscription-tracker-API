@@ -143,3 +143,107 @@ export const deleteSubscription = async (req, res, next) => {
     next(error)
   }
 }
+
+export const cancelSubscription = (req, res, next) => {
+  try {
+    let userId = req.user.id
+    let paramId = req.params.id;
+
+    // Ensure user is authenticated
+    if (!userId) {
+      const error = new Error("Unauthorized: user not found in token");
+      error.statusCode = 401;
+      return next(error);
+    }
+    // Prevent accessing another user's account
+    if (userId !== paramId) {
+      const error = new Error("Access denied: cannot view another user's subscriptions");
+      error.statusCode = 403; // use 403 for "forbidden"
+      return next(error);
+    }
+
+    const subscription = subscriptionModel.findById(paramId)
+
+    subscription.status = "cancelled";
+
+    res.status(200).json({
+      success: "true",
+      message: "subscription succesfully cancelled"
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export const getAllSubscriptions = (req, res, next) => {
+  try {
+    const userId = req.user.id;
+
+    if (!userId) {
+      const error = new Error("Access denied: cannot view all user's subscriptions without having access");
+      error.statusCode = 403; // use 403 for "forbidden"
+      return next(error);
+    }
+
+    const allUsers = subscriptionModel.find();
+
+    res.status(200).json({
+      message: "all subscription info fetched successfully",
+      users: allUsers
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export const updateSubscription = async (req, res, next) => {
+  try {
+    const paramId = req.params.id;
+    const userId = req.user.id;
+
+    // Ensure user is authenticated
+    if (!userId) {
+      const error = new Error("Unauthorized: user not found in token");
+      error.statusCode = 401;
+      return next(error);
+    }
+    // Prevent accessing another user's account
+    if (userId !== paramId) {
+      const error = new Error("Access denied: cannot view another user's subscriptions");
+      error.statusCode = 403; // use 403 for "forbidden"
+      return next(error);
+    }
+
+    const { name, price, currency, frequency, category, paymentMethod, status, startDate, renewalDate } = req.body;
+
+    const subscription = subscriptionModel.findById(paramId).lean();
+
+    if (!subscription) {
+      const error = new Error("Subscription not found");
+      error.statusCode = 404;
+      return next(error)
+    }
+
+    Object.assign(
+      subscription, {
+        ...(name && { name }),
+        ...(price && { price }),
+        ...(currency && { currency }),
+        ...(frequency && { frequency }),
+        ...(category && { category }),
+        ...(paymentMethod && { paymentMethod }),
+        ...(status && { status }),
+        ...(startDate && { startDate }),
+        ...(renewalDate && { renewalDate }),
+    })
+
+    await subscription.save()
+
+    res.status(200).json({
+      message: "subscription details updated successfully",
+      subscription: subscription
+    })
+  } catch (error) {
+    next(error);
+  }
+}
