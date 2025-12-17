@@ -203,13 +203,13 @@ export const updateSubscription = async (req, res, next) => {
 
     // Ensure user is authenticated
     if (!userId) {
-      const error = new Error("Unauthorized: user not found in token");
+      const error = new Error("Unauthorized: User not found in token. Cannot update subscription details");
       error.statusCode = 401;
       return next(error);
     }
     // Prevent accessing another user's account
     if (userId !== paramId) {
-      const error = new Error("Access denied: cannot view another user's subscriptions");
+      const error = new Error("Access denied: Cannot update another user's subscriptions");
       error.statusCode = 403; // use 403 for "forbidden"
       return next(error);
     }
