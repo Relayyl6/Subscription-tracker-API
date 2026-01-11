@@ -45,13 +45,6 @@ export const getUserSubscriptions = async (req, res, next) => {
       return next(error);
     }
 
-    // Prevent accessing another user's account
-    if (userId !== paramId) {
-      const error = new Error("Access denied: cannot view another user's subscriptions");
-      error.statusCode = 403; // use 403 for "forbidden"
-      return next(error);
-    }
-
     // Fetch subscriptions
     const subscriptions = await subscriptionModel.find({
         user: paramId
@@ -88,13 +81,6 @@ export const getSubscriptionDetails = async  (req, res, next) => {
         return next(error);
       }
 
-      // Prevent accessing another user's account
-      if (userId !== paramId) {
-        const error = new Error("Access denied: cannot view another user's subscriptions");
-        error.statusCode = 403; // use 403 for "forbidden"
-        return next(error);
-      }
-
       const subscriptionDetail = await subscriptionModel.findById(
         paramId
       ).lean();
@@ -123,13 +109,6 @@ export const deleteSubscription = async (req, res, next) => {
       if (!userId) {
         const error = new Error("Unauthorized: user not found in token");
         error.statusCode = 401;
-        return next(error);
-      }
-
-      // Prevent accessing another user's account
-      if (userId !== paramId) {
-        const error = new Error("Access denied: cannot view another user's subscriptions");
-        error.statusCode = 403; // use 403 for "forbidden"
         return next(error);
       }
 
