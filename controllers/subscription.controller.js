@@ -134,12 +134,6 @@ export const cancelSubscription = (req, res, next) => {
       error.statusCode = 401;
       return next(error);
     }
-    // Prevent accessing another user's account
-    if (userId !== paramId) {
-      const error = new Error("Access denied: cannot view another user's subscriptions");
-      error.statusCode = 403; // use 403 for "forbidden"
-      return next(error);
-    }
 
     const subscription = subscriptionModel.findById(paramId)
 
