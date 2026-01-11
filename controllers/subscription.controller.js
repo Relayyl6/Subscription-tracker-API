@@ -198,46 +198,50 @@ export const getAllSubscriptions = (req, res, next) => {
 
 export const updateSubscription = async (req, res, next) => {
   try {
-    const paramId = req.params.id;
-    const userId = req.user.id;
+    const subscriptionId = req.params.id;
+    const userId = req.user?.id;
 
-    // Ensure user is authenticated
     if (!userId) {
-      const error = new Error("Unauthorized: User not found in token. Cannot update subscription details");
-      error.statusCode = 401;
-      return next(error);
+      return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const { name, price, currency, frequency, category, paymentMethod, status, startDate, renewalDate } = req.body;
+    const updateFields = {};
+    const allowedFields = [
+      "name",
+      "price",
+      "currency",
+      "frequency",
+      "category",
+      "paymentMethod",
+      "status",
+      "startDate",
+      "renewalDate"
+    ];
 
-    const subscription = await subscriptionModel.findById(paramId).lean();
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        updateFields[field] = req.body[field];
+      }
+    }
+
+    const subscription = await subscriptionModel.findOneAndUpdate(
+      { _id: subscriptionId, userId }, // ownership check
+      { $set: updateFields },
+      { new: true, runValidators: true }
+    );
 
     if (!subscription) {
-      const error = new Error("Subscription not found");
-      error.statusCode = 404;
-      return next(error)
+      return res.status(404).json({
+        message: "Subscription not found or access denied"
+      });
     }
 
-    Object.assign(
-      subscription, {
-        ...(name && { name }),
-        ...(price && { price }),
-        ...(currency && { currency }),
-        ...(frequency && { frequency }),
-        ...(category && { category }),
-        ...(paymentMethod && { paymentMethod }),
-        ...(status && { status }),
-        ...(startDate && { startDate }),
-        ...(renewalDate && { renewalDate }),
-    })
-
-    await subscription.save()
-
     res.status(200).json({
-      message: "subscription details updated successfully",
-      subscription: subscription
-    })
+      message: "Subscription updated successfully",
+      subscription
+    });
+
   } catch (error) {
     next(error);
   }
-}
+};
