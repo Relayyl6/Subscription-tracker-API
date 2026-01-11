@@ -207,16 +207,10 @@ export const updateSubscription = async (req, res, next) => {
       error.statusCode = 401;
       return next(error);
     }
-    // Prevent accessing another user's account
-    if (userId !== paramId) {
-      const error = new Error("Access denied: Cannot update another user's subscriptions");
-      error.statusCode = 403; // use 403 for "forbidden"
-      return next(error);
-    }
 
     const { name, price, currency, frequency, category, paymentMethod, status, startDate, renewalDate } = req.body;
 
-    const subscription = subscriptionModel.findById(paramId).lean();
+    const subscription = await subscriptionModel.findById(paramId).lean();
 
     if (!subscription) {
       const error = new Error("Subscription not found");
